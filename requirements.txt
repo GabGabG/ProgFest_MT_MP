@@ -1,0 +1,6 @@
+cupy==13.0.0
+matplotlib==3.8.2
+numpy==1.26.3
+psutil==5.9.8
+PythonBasicTools==0.0.1a10
+pytube==15.0.0
