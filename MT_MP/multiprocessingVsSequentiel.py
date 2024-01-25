@@ -3,6 +3,8 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 import cupy as cp
+import psutil
+import tqdm
 
 
 def autocorrelation_cpu_sequentiel_ameliore(array):
@@ -40,21 +42,23 @@ def autocorrelation_gpu(array):
 
 
 if __name__ == '__main__':
+    n_cpu = psutil.cpu_count(logical=True)
     nb_arrayss = range(100, 1_001, 100)
     N = 30
     times = np.zeros((5, len(nb_arrayss), N))
+    p_bar = tqdm.tqdm(total=len(nb_arrayss) * N, desc="Benchmarking")
     for j in range(N):
         for i, nb_arrays in enumerate(nb_arrayss):
             arrays = [np.random.normal(i, 1, 10000) for i in range(nb_arrays)]
             start_multiprocess_base = time.time()
-            with mp.Pool(6) as pool:
+            with mp.Pool(n_cpu) as pool:
                 output_mp = np.array(pool.map(autocorrelation_multiprocess_base, arrays))
             end_multiprocess_base = time.time()
             output_seq_ameliore = autocorrelation_cpu_sequentiel_ameliore(arrays)
             end_seq_ameliore = time.time()
-            with mp.Pool(6) as pool:
+            with mp.Pool(n_cpu) as pool:
                 output_mp2 = np.concatenate(
-                    pool.map(autocorrelation_cpu_sequentiel_ameliore, np.array_split(arrays, 6)))
+                    pool.map(autocorrelation_cpu_sequentiel_ameliore, np.array_split(arrays, n_cpu)))
             end_multiprocess_ameliore = time.time()
             output_seq_base = autocorrelation_cpu_sequentiel_base(arrays)
             end_seq_base = time.time()
@@ -67,15 +71,15 @@ if __name__ == '__main__':
             end_gpu = time.time()
             time_gpu = end_gpu - start_gpu
             times[:, i, j] = time_seq_base, time_seq_ameliore, time_mp_base, time_mp_ameliore, time_gpu
-            print(f"\r{(i + 1) / len(nb_arrayss) * 100}%", end="")
-        print("==========")
-    times = np.mean(times, axis=-1)
-    plt.plot(nb_arrayss, times[0], label="Loop")
-    plt.plot(nb_arrayss, times[1], label="Vec")
-    plt.plot(nb_arrayss, times[2], label="MP")
-    plt.plot(nb_arrayss, times[3], label="MP + Vec")
-    plt.plot(nb_arrayss, times[-1], label="GPU")
+            p_bar.update()
+    times_mean, times_std = np.mean(times, axis=-1), np.std(times, axis=-1)
+    colors = ["red", "blue", "green", "orange", "purple"]
+    labels = ["Loop", "Vec", "MP", "MP + Vec", "GPU"]
+    for i, (mean, std, color, label) in enumerate(zip(times_mean, times_std, colors, labels)):
+        plt.plot(nb_arrayss, mean, label=label, color=color)
+        plt.fill_between(nb_arrayss, mean - std, mean + std, alpha=0.2, color=color)
     plt.legend()
     plt.ylabel(f"Temps [s] (moyenne de {N} essais)")
     plt.xlabel("Nombre de vecteurs de taille 10000 [-]")
+    plt.savefig("benchmark_seq_mp_gpu.pdf", bbox_inches="tight", pad_inches=0.1, dpi=300)
     plt.show()
