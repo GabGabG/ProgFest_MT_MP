@@ -4,3 +4,4 @@ numpy==1.26.3
 psutil==5.9.8
 PythonBasicTools==0.0.1a10
 pytube==15.0.0
+tqdm==4.66.1
